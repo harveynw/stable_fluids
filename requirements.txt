@@ -1,0 +1,6 @@
+numpy
+matplotlib
+joblib
+shapely
+tqdm
+jax
