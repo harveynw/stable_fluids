@@ -61,14 +61,13 @@ def start_animation_2(dens_history: List[Grid], u_vel_history: List[Grid], v_vel
         fig.suptitle(str(frame_index))
         return ax1, ax2, ax3
 
-    ani = matplotlib.animation.FuncAnimation(fig, function_for_animation, interval=200, frames=len(dens_history),
-                                             blit=True)
+    ani = matplotlib.animation.FuncAnimation(fig, function_for_animation, interval=200, frames=len(dens_history))
     return ani
 
 
 dens_history_2, u_vel_history, v_vel_history = simulate_2(1000)
 
 anim = start_animation_2(dens_history_2, u_vel_history, v_vel_history)
-plt.show()
-# writervideo = matplotlib.animation.FFMpegWriter(fps=30)
-# anim.save('outputs/full.mp4', writer=writervideo)
+# plt.show()
+writervideo = matplotlib.animation.FFMpegWriter(fps=30)
+anim.save('outputs/full.mp4', writer=writervideo)
