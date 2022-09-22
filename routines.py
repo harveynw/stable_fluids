@@ -51,41 +51,6 @@ def diffuse(N: int, b: int, x: Grid, x0: Grid, diff: float, dt: float) -> Grid:
     return fori_loop(0, 20, g_s_iteration, x)
 
 
-# @partial(jit, static_argnums=(0, 1))
-# def advect(N: int, b: int, d0: Grid, u: Grid, v: Grid, dt: float) -> Grid:
-#     dt0 = dt*N  # ???
-#
-#     indices = np.array([
-#         (i, j)
-#         for i in range(1, N+1)
-#         for j in range(1, N+1)
-#     ])
-#     indices_float = np.array([
-#         np.array([i, j])
-#         for i in range(1, N+1)
-#         for j in range(1, N+1)
-#     ])
-#
-#     lerp_grid_1d = np.arange(N+2)
-#
-#     def update(d_dash, pair):
-#         (i, j), (ii, jj) = pair
-#
-#         k = np.clip(i - dt0*u[ii, jj], 0.5, N+0.5)
-#         l = np.clip(j - dt0*v[ii, jj], 0.5, N+0.5)
-#
-#         # Lerp density method 1
-#         interp_vmap = vmap(np.interp, (None, None, 0), 0)
-#         lerp_y = interp_vmap(l, lerp_grid_1d, d_dash)
-#         lerp_x_y = np.interp(k, lerp_grid_1d, lerp_y)
-#
-#         return d_dash.at[ii, jj].set(lerp_x_y), 0.0
-#
-#     d, _ = jax.lax.scan(update, np.array(d0), (indices_float, indices))
-#     d = set_bnd(N, b, d)
-#     return d
-
-
 @partial(jit, static_argnums=(0, 1))
 def advect(N: int, b: int, grid_points: np.ndarray, d0: Grid, u: Grid, v: Grid, dt: float) -> Grid:
     dt0 = dt*N  # ???
@@ -101,24 +66,75 @@ def advect(N: int, b: int, grid_points: np.ndarray, d0: Grid, u: Grid, v: Grid, 
     return d
 
 
+# @partial(jit, static_argnums=0)
+# def project(N: int, u: Grid, v: Grid, p: Grid, div: Grid) -> (Grid, Grid):
+#     h = 1/N
+#     indices = np.array([
+#         (i, j)
+#         for i in range(1, N+1)
+#         for j in range(1, N+1)
+#     ])
+#
+#     # STEP 1
+#     #     for i in range(1, N+1):
+#     #         for j in range(1, N+1):
+#     #             div[i,j] = -0.5*h*(u[i+1,j]-u[i-1,j]+v[i,j+1]-v[i,j-1])
+#     def init_div(div, idx):
+#         ii, jj = idx
+#         div = div.at[ii, jj].set(-0.5*h*(u[ii+1,jj]-u[ii-1,jj]+v[ii,jj+1]-v[ii,jj-1]))
+#         return div, 0.0
+#     div, _ = jax.lax.scan(init_div, div, indices)
+#
+#     # STEP 2
+#     div = set_bnd(N, 0, div)
+#     p = set_bnd(N, 0, p)
+#
+#     # STEP 3
+#     #     for _ in range(20):  # G-S
+#     #         for i in range(1, N+1):
+#     #             for j in range(1, N+1):
+#     #                 p[i,j] = (div[i,j]+p[i-1,j]+p[i+1,j]+p[i,j-1]+p[i,j+1])/4
+#     #         set_bnd (N, 0, p)
+#     def update_pressure(p, idx):
+#         ii, jj = idx
+#         p = p.at[ii, jj].set((div[ii,jj]+p[ii-1,jj]+p[ii+1,jj]+p[ii,jj-1]+p[ii,jj+1])/4.0)
+#         return p, 0.0
+#     def g_s_iteration(_, p):
+#         p, _ = jax.lax.scan(update_pressure, p, indices)
+#         return set_bnd(N, 0, p)
+#     p = fori_loop(0, 20, g_s_iteration, p)
+#
+#     # STEP 4
+#     #     for i in range(1, N+1):
+#     #         for j in range(1, N+1):
+#     #             u[i,j] -= 0.5*(p[i+1,j]-p[i-1,j])/h
+#     #             v[i,j] -= 0.5*(p[i,j+1]-p[i,j-1])/h
+#     def update_velocity(vel, idx):
+#         ii, jj = idx
+#         u, v = vel
+#         u = u.at[ii, jj].set(u[ii,jj] - 0.5*(p[ii+1,jj]-p[ii-1,jj])/h)
+#         v = v.at[ii, jj].set(u[ii,jj] - 0.5*(p[ii,jj+1]-p[ii,jj-1])/h)
+#         return np.array([u, v]), 0.0
+#     (u, v), _ = jax.lax.scan(update_velocity, np.array([u, v]), indices)
+#
+#     # STEP 5
+#     u = set_bnd (N, 1, u)
+#     v = set_bnd (N, 2, v)
+#
+#     return u, v
+
+
 @partial(jit, static_argnums=0)
-def project(N: int, u: Grid, v: Grid, p: Grid, div: Grid) -> (Grid, Grid):
+def project(N: int, u: Grid, v: Grid) -> (Grid, Grid):
     h = 1/N
-    indices = np.array([
-        (i, j)
-        for i in range(1, N+1)
-        for j in range(1, N+1)
-    ])
 
     # STEP 1
     #     for i in range(1, N+1):
     #         for j in range(1, N+1):
     #             div[i,j] = -0.5*h*(u[i+1,j]-u[i-1,j]+v[i,j+1]-v[i,j-1])
-    def init_div(div, idx):
-        ii, jj = idx
-        div = div.at[ii, jj].set(-0.5*h*(u[ii+1,jj]-u[ii-1,jj]+v[ii,jj+1]-v[ii,jj-1]))
-        return div, 0.0
-    div, _ = jax.lax.scan(init_div, div, indices)
+    div = -0.5*h*(np.roll(a=u, shift=-1, axis=0) - np.roll(a=u, shift=1, axis=0)
+                  + np.roll(a=v, shift=-1, axis=1) - np.roll(a=v, shift=1, axis=1))
+    p = np.zeros((N+2, N+2))
 
     # STEP 2
     div = set_bnd(N, 0, div)
@@ -130,32 +146,23 @@ def project(N: int, u: Grid, v: Grid, p: Grid, div: Grid) -> (Grid, Grid):
     #             for j in range(1, N+1):
     #                 p[i,j] = (div[i,j]+p[i-1,j]+p[i+1,j]+p[i,j-1]+p[i,j+1])/4
     #         set_bnd (N, 0, p)
-    def update_pressure(p, idx):
-        ii, jj = idx
-        p = p.at[ii, jj].set((div[ii,jj]+p[ii-1,jj]+p[ii+1,jj]+p[ii,jj-1]+p[ii,jj+1])/4.0)
-        return p, 0.0
-    def g_s_iteration(_, p):
-        p, _ = jax.lax.scan(update_pressure, p, indices)
-        return set_bnd(N, 0, p)
-    p = fori_loop(0, 20, g_s_iteration, p)
+    def update_pressure(_, p_dash):
+        p_dash = (div + np.roll(a=p_dash, shift=1, axis=0) + np.roll(a=p_dash, shift=-1, axis=0)
+                  + np.roll(a=p_dash, shift=1, axis=1) + np.roll(a=p_dash, shift=-1, axis=1))/4.0
+        return set_bnd(N, 0, p_dash)
+    p = fori_loop(0, 20, update_pressure, p)  # G-S
 
     # STEP 4
     #     for i in range(1, N+1):
     #         for j in range(1, N+1):
     #             u[i,j] -= 0.5*(p[i+1,j]-p[i-1,j])/h
     #             v[i,j] -= 0.5*(p[i,j+1]-p[i,j-1])/h
-    def update_velocity(vel, idx):
-        ii, jj = idx
-        u, v = vel
-        u = u.at[ii, jj].set(u[ii,jj] - 0.5*(p[ii+1,jj]-p[ii-1,jj])/h)
-        v = v.at[ii, jj].set(u[ii,jj] - 0.5*(p[ii,jj+1]-p[ii,jj-1])/h)
-        return np.array([u, v]), 0.0
-    (u, v), _ = jax.lax.scan(update_velocity, np.array([u, v]), indices)
+    u = u - 0.5 * (np.roll(a=p, shift=-1, axis=0) - np.roll(a=p, shift=1, axis=0)) / h
+    v = v - 0.5 * (np.roll(a=p, shift=-1, axis=1) - np.roll(a=p, shift=1, axis=1)) / h
 
     # STEP 5
-    u = set_bnd (N, 1, u)
-    v = set_bnd (N, 2, v)
+    u = set_bnd(N, 1, u)
+    v = set_bnd(N, 2, v)
 
     return u, v
-
 
