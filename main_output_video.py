@@ -1,3 +1,6 @@
+# For debugging only, use the interactive solver
+
+import os
 import jax.numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -12,18 +15,14 @@ from initial_conditions import setup_1
 matplotlib.use('TkAgg')
 
 
-def simulate_2(frames=10) -> (List[Grid], List[Grid], List[Grid]):
+def simulate(frames=10) -> (List[Grid], List[Grid], List[Grid]):
     dens_history = []
     u_vel_history, v_vel_history = [], []
 
     N = 100
 
     grid = (N+2, N+2)
-    grid_points = np.array([
-        np.array([i, j])
-        for i in range(N+2)
-        for j in range(N+2)
-    ])
+    grid_points = np.column_stack([np.repeat(np.arange(N+2), N+2), np.tile(np.arange(N+2), N+2)])
 
     u, v, dens, dens_prev, diff, dt = setup_1(grid)
     u_prev, v_prev = np.array(u), np.array(v)
@@ -41,7 +40,7 @@ def simulate_2(frames=10) -> (List[Grid], List[Grid], List[Grid]):
     return dens_history, u_vel_history, v_vel_history
 
 
-def start_animation_2(dens_history: List[Grid], u_vel_history: List[Grid], v_vel_history: List[Grid]):
+def start_animation(dens_history: List[Grid], u_vel_history: List[Grid], v_vel_history: List[Grid]):
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
 
     im_1 = dens_history[0].transpose()
@@ -65,9 +64,14 @@ def start_animation_2(dens_history: List[Grid], u_vel_history: List[Grid], v_vel
     return ani
 
 
-dens_history_2, u_vel_history, v_vel_history = simulate_2(1000)
+# Sim
+dens_history, u_vel_history, v_vel_history = simulate(1000)
 
-anim = start_animation_2(dens_history_2, u_vel_history, v_vel_history)
-# plt.show()
-writervideo = matplotlib.animation.FFMpegWriter(fps=30)
-anim.save('outputs/full.mp4', writer=writervideo)
+# Animate
+anim = start_animation(dens_history, u_vel_history, v_vel_history)
+
+# Save
+writer = matplotlib.animation.FFMpegWriter(fps=30)
+if not os.path.isdir('outputs'):
+    os.mkdir('outputs')
+anim.save('outputs/full_solver.mp4', writer=writer)

@@ -1,57 +1,98 @@
-import numpy as onp
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.animation
+import time
+import cv2
 import jax.numpy as np
+import numpy as onp
 
-from typing import List
-from tqdm import tqdm
-from routines import Grid
-from solvers import dens_step
+from solvers import dens_step, vel_step
 from initial_conditions import setup_1
 
-matplotlib.use('TkAgg')
+
+class MouseTracker:
+    def __init__(self, N):
+        self.N = N
+        self.mouse_x, self.mouse_y = 0.0, 0.0
+        self.mouse_dx, self.mouse_dy = 0.0, 0.0
+        self.mouse_down = False
+
+    def retrieve_update_matrices(self) -> (np.ndarray, np.ndarray, np.ndarray):
+        add_source = np.zeros((self.N+2, self.N+2))
+        add_u, add_v = np.zeros((self.N+2, self.N+2)), np.zeros((self.N+2, self.N+2))
+
+        if self.mouse_down:
+            i, j = self.N - int(self.mouse_y), int(self.mouse_x)
+            add_source = add_source.at[i, j].set(1.0)
+
+            add_u = add_u.at[i, j].set(self.mouse_dx)
+            add_v = add_v.at[i, j].set(self.mouse_dy)
+
+            self.mouse_dx, self.mouse_dy = 0.0, 0.0
+
+        return 100.0 * add_source, 100.0 * add_u, 100.0 * add_v
+
+    def register(self, window_name):
+        cv2.setMouseCallback(window_name, self.mouse_update)
+
+    def mouse_update(self, event, x, y, flags, param):
+        # This is the OpenCV hook
+
+        if event == cv2.EVENT_LBUTTONDOWN:
+            # print('Mouse down')
+            self.mouse_down = True
+        elif event == cv2.EVENT_LBUTTONUP:
+            # print('Mouse up')
+            self.mouse_down = False
+        elif event == cv2.EVENT_MOUSEMOVE and self.mouse_down:
+            self.mouse_dx += x - self.mouse_x
+            self.mouse_dy += y - self.mouse_y
+            # print('Mouse move', self.mouse_dx, self.mouse_dy)
+            self.mouse_x, self.mouse_y = x, y
 
 
-def simulate(frames=10) -> List[Grid]:
-    history = []
-
-    N = 100
+def run_simulation():
+    N = 200
     grid = (N+2, N+2)
-    u, v, dens, dens_prev, diff, dt = setup_1(grid)
+    grid_points = np.column_stack([np.repeat(np.arange(N+2), N+2), np.tile(np.arange(N+2), N+2)])
 
-    grid_points = np.array([
-        np.array([i, j])
-        for i in range(N+2)
-        for j in range(N+2)
-    ])
+    u, v, dens, dens_prev, diff, visc = setup_1(grid)
+    u_prev, v_prev = np.array(u), np.array(v)
 
-    print('Beginning density ONLY solver...')
-    for _ in tqdm(range(frames)):
+    window_name = 'Stable Fluids'
+    cv2.namedWindow(window_name)
+    cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
+
+    mouse = MouseTracker(N=N)
+    mouse.register(window_name)
+
+    prev_frame_time, new_frame_time = 0, 0
+    while True:
+        new_frame_time = time.time()
+        dt = min(new_frame_time-prev_frame_time, 1.0)
+        fps = 1/dt
+        prev_frame_time = new_frame_time
+
+        u, v, u_prev, v_prev = vel_step(N, grid_points, u, v, u_prev, v_prev, visc, dt)
         dens, dens_prev = dens_step(N, grid_points, dens, dens_prev, u, v, diff, dt)
-        history.append(onp.array(dens))
 
-    return history
+        frame = onp.flip(onp.array(dens), axis=0)
+        frame = np.repeat(frame[:, :, onp.newaxis], 3, axis=2)
+        frame = onp.ascontiguousarray(frame)
+
+        # User Input
+        dens_prev, u_prev, v_prev = mouse.retrieve_update_matrices()
+
+        fontScale, thickness = 0.2, 1
+        cv2.putText(frame, f'FPS: {str(int(fps))}', (5, 5), cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
+        cv2.putText(frame, f'Total Density: {np.sum(dens)}', (5, 10), cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
+
+        # Display the resulting frame
+        cv2.imshow(window_name, frame)
+
+        # Press Q on keyboard to exit
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Closes all the frames
+    cv2.destroyAllWindows()
 
 
-def start_animation_1(history: List[Grid]):
-    f = plt.figure()
-    ax = f.gca()
-
-    im = history[0].transpose()
-    image = plt.imshow(im, interpolation='None', origin='lower', animated=True)
-
-    def function_for_animation(frame_index):
-        image.set_data(history[frame_index].transpose())
-        ax.set_title(str(frame_index))
-        return image,
-
-    ani = matplotlib.animation.FuncAnimation(f, function_for_animation, interval=200, frames=len(dens_history),
-                                             blit=True)
-    return ani
-
-
-dens_history = simulate(1000)
-anim = start_animation_1(dens_history)
-writervideo = matplotlib.animation.FFMpegWriter(fps=30)
-anim.save('outputs/density_only_new_advect.mp4', writer=writervideo)
+run_simulation()

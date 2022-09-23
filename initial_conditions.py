@@ -9,12 +9,12 @@ def setup_1(grid):
 
     # Density initial conditions
     dens, dens_prev = onp.zeros(grid), onp.zeros(grid)
-    dens[5:6, 5:6] = 1
-    dens_prev[5:6, 5:6] = 1
 
-    diff, dt = 0.0005, 0.01
+    # Diffusion, viscosity
+    diff = 0.000005
+    visc = 0.0001
 
-    return np.array(u), np.array(v), np.array(dens), np.array(dens_prev), diff, dt
+    return np.array(u), np.array(v), np.array(dens), np.array(dens_prev), diff, visc
 
 
 def setup_2(grid):
