@@ -4,3 +4,5 @@ joblib
 shapely
 tqdm
 jax
+jaxlib
+opencv-python

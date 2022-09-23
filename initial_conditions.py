@@ -9,8 +9,8 @@ def setup_1(grid):
 
     # Density initial conditions
     dens, dens_prev = onp.zeros(grid), onp.zeros(grid)
-    dens[5:30, 5:30] = 1
-    dens_prev[5:10, 5:10] = 1
+    dens[5:6, 5:6] = 1
+    dens_prev[5:6, 5:6] = 1
 
     diff, dt = 0.0005, 0.01
 
