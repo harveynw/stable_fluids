@@ -71,41 +71,23 @@ def advect(N: int, b: int, grid_points: np.ndarray, d0: Grid, u: Grid, v: Grid, 
 def project(N: int, u: Grid, v: Grid) -> (Grid, Grid):
     h = 1/N
 
-    # STEP 1
-    #     for i in range(1, N+1):
-    #         for j in range(1, N+1):
-    #             div[i,j] = -0.5*h*(u[i+1,j]-u[i-1,j]+v[i,j+1]-v[i,j-1])
     div = -0.5*h*(np.roll(a=u, shift=-1, axis=0) - np.roll(a=u, shift=1, axis=0)
                   + np.roll(a=v, shift=-1, axis=1) - np.roll(a=v, shift=1, axis=1))
     p = np.zeros((N+2, N+2))
 
-    # STEP 2
     div = set_bnd(N, 0, div)
     p = set_bnd(N, 0, p)
 
-    # STEP 3
-    #     for _ in range(20):  # G-S
-    #         for i in range(1, N+1):
-    #             for j in range(1, N+1):
-    #                 p[i,j] = (div[i,j]+p[i-1,j]+p[i+1,j]+p[i,j-1]+p[i,j+1])/4
-    #         set_bnd (N, 0, p)
     def update_pressure(_, p_dash):
         p_dash = (div + np.roll(a=p_dash, shift=1, axis=0) + np.roll(a=p_dash, shift=-1, axis=0)
                   + np.roll(a=p_dash, shift=1, axis=1) + np.roll(a=p_dash, shift=-1, axis=1))/4.0
         return set_bnd(N, 0, p_dash)
     p = fori_loop(0, 20, update_pressure, p)  # G-S
 
-    # STEP 4
-    #     for i in range(1, N+1):
-    #         for j in range(1, N+1):
-    #             u[i,j] -= 0.5*(p[i+1,j]-p[i-1,j])/h
-    #             v[i,j] -= 0.5*(p[i,j+1]-p[i,j-1])/h
     u = u - 0.5 * (np.roll(a=p, shift=-1, axis=0) - np.roll(a=p, shift=1, axis=0)) / h
     v = v - 0.5 * (np.roll(a=p, shift=-1, axis=1) - np.roll(a=p, shift=1, axis=1)) / h
 
-    # STEP 5
     u = set_bnd(N, 1, u)
     v = set_bnd(N, 2, v)
 
     return u, v
-

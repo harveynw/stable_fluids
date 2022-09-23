@@ -8,8 +8,9 @@ from initial_conditions import setup_1
 
 
 class MouseTracker:
-    def __init__(self, N):
+    def __init__(self, N, image_scale):
         self.N = N
+        self.image_scale = float(image_scale)
         self.mouse_x, self.mouse_y = 0.0, 0.0
         self.mouse_dx, self.mouse_dy = 0.0, 0.0
         self.mouse_down = False
@@ -34,6 +35,7 @@ class MouseTracker:
 
     def mouse_update(self, event, x, y, flags, param):
         # This is the OpenCV hook
+        x, y = x/self.image_scale, y/self.image_scale
 
         if event == cv2.EVENT_LBUTTONDOWN:
             # print('Mouse down')
@@ -57,10 +59,11 @@ def run_simulation():
     u_prev, v_prev = np.array(u), np.array(v)
 
     window_name = 'Stable Fluids'
+    window_image_scale = 4
     cv2.namedWindow(window_name)
     cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
 
-    mouse = MouseTracker(N=N)
+    mouse = MouseTracker(N=N, image_scale=window_image_scale)
     mouse.register(window_name)
 
     prev_frame_time, new_frame_time = 0, 0
@@ -73,16 +76,19 @@ def run_simulation():
         u, v, u_prev, v_prev = vel_step(N, grid_points, u, v, u_prev, v_prev, visc, dt)
         dens, dens_prev = dens_step(N, grid_points, dens, dens_prev, u, v, diff, dt)
 
+        # Generate Image
         frame = onp.flip(onp.array(dens), axis=0)
         frame = np.repeat(frame[:, :, onp.newaxis], 3, axis=2)
         frame = onp.ascontiguousarray(frame)
+        frame = cv2.resize(frame, (window_image_scale*grid[0], window_image_scale*grid[1]))
 
         # User Input
         dens_prev, u_prev, v_prev = mouse.retrieve_update_matrices()
 
-        fontScale, thickness = 0.2, 1
-        cv2.putText(frame, f'FPS: {str(int(fps))}', (5, 5), cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
-        cv2.putText(frame, f'Total Density: {np.sum(dens)}', (5, 10), cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
+        fontScale, thickness = 1, 1
+        text_params = (cv2.FONT_HERSHEY_SIMPLEX, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
+        cv2.putText(frame, f'FPS: {str(int(fps))}', (5, 25), *text_params)
+        cv2.putText(frame, f'Total Density: {int(np.sum(dens))}', (5, 50), *text_params)
 
         # Display the resulting frame
         cv2.imshow(window_name, frame)

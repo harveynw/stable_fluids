@@ -3,7 +3,7 @@
 Jos Stam's Navier-Stokes solver but written in Python (JAX) rather than C.
 
 <p align="center">
-  <img src="img/screenshot.png" width="798" height="832" />
+  <img src="img/screenshot.png" width="800" height="843" />
 </p>
 
 <hr>
