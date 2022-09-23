@@ -1,7 +1,7 @@
 ## Stable Fluids
 
 <p align="center">
-  <img src="img/screenshot.png" />
+  <img src="img/screenshot.png" width="798" height="832" />
 </p>
 
 Jos Stam's Navier-Stokes solver but written in Python (JAX) rather than C.
